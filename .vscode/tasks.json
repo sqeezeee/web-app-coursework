@@ -9,12 +9,13 @@
                 "run",
                 "--rm",
                 "-v",
-                "${workspaceFolder}:/data",
+                "${fileDirname}:/data", 
                 "-w",
                 "/data",
                 "texlive/texlive:latest-full",
-                "make", 
-                "paper.pdf" 
+                "latexmk",
+                "-pdf",
+                "${fileBasename}"
             ],
             "group": {
                 "kind": "build",
