@@ -36,15 +36,47 @@
         </div>
     </div>
     
-    <!-- правая часть экрана: место под круговую диаграмму из макета -->
+    <!-- правая часть экрана: круговая диаграмма агрегации -->
     <div class="col-md-6">
         <div class="card p-4 shadow-sm text-center h-100">
-            <h5 class="text-muted mb-4">Статистика задач</h5>
-            <div class="d-flex align-items-center justify-content-center h-100">
-                <div style="width: 200px; height: 200px; border-radius: 50%; border: 3px dashed #dee2e6; display: flex; align-items: center; justify-content: center;">
-                    <span class="text-muted small">график появится позже</span>
+            <h5 class="text-muted mb-4">Общая статистика задач</h5>
+            
+            <!-- Проверяем, есть ли вообще задачи в базе -->
+            {% if stats.total > 0 %}
+                <div style="height: 250px; display: flex; justify-content: center;">
+                    <canvas id="statsChart"></canvas>
                 </div>
-            </div>
+                
+                <!-- Подключаем библиотеку Chart.js -->
+                <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+                <script>
+                    const ctx = document.getElementById('statsChart').getContext('2d');
+                    new Chart(ctx, {
+                        type: 'pie', // тип графика - круговая диаграмма
+                        data: {
+                            labels:['Ожидают', 'В работе', 'Готово'],
+                            datasets:[{
+                                // вставляем агрегированные данные
+                                data: [{{ stats.pending }}, {{ stats.in_progress }}, {{ stats.done }}],
+                                // Цвета: серый, желтый, зеленый
+                                backgroundColor:['#6c757d', '#ffc107', '#198754'],
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { position: 'bottom' } // Легенда снизу
+                            }
+                        }
+                    });
+                </script>
+            {% else %}
+                <div class="d-flex align-items-center justify-content-center h-100">
+                    <span class="text-muted small">Пока нет данных для статистики</span>
+                </div>
+            {% endif %}
         </div>
     </div>
 </div>

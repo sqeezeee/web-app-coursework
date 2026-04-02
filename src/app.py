@@ -63,11 +63,27 @@ def load_user(user_id):
 
 # Маршруты
 
+# главная страница (дашборд)
 @app.route('/')
 @login_required
 def index():
     projects = Project.query.all()
-    return render_template('index.html', projects=projects)
+    
+    # агрегирование данных для круговой диаграммы
+    total_tasks = Task.query.count()
+    pending_tasks = Task.query.filter_by(status='pending').count()
+    in_progress_tasks = Task.query.filter_by(status='in_progress').count()
+    done_tasks = Task.query.filter_by(status='done').count()
+    
+    # упаковываем статистику в словарь, чтобы передать в HTML
+    stats = {
+        'total': total_tasks,
+        'pending': pending_tasks,
+        'in_progress': in_progress_tasks,
+        'done': done_tasks
+    }
+    
+    return render_template('index.html', projects=projects, stats=stats)
 
 @app.route('/create_project', methods=['POST'])
 @login_required
@@ -160,6 +176,21 @@ def update_task(task_id):
     db.session.commit()
     flash('Задача обновлена!', 'success')
     return redirect(url_for('project_view', project_id=task.project_id))
+
+# удаление проекта (только для админа)
+@app.route('/project/<int:project_id>/delete', methods=['POST'])
+@login_required
+def delete_project(project_id):
+    if current_user.role != 'admin':
+        flash('У вас нет прав для удаления проектов.', 'danger')
+        return redirect(url_for('index'))
+        
+    project = Project.query.get_or_404(project_id)
+    db.session.delete(project)
+    db.session.commit()
+    
+    flash(f'Проект "{project.title}" был успешно удален.', 'success')
+    return redirect(url_for('index'))    
 
 # Авторизация
 

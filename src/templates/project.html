@@ -16,10 +16,14 @@
     </div>
     
     {% if current_user.role == 'admin' %}
-    <div class="col-auto">
+    <div class="col-auto d-flex gap-2">
         <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addTaskModal">
             + Добавить задачу
         </button>
+        <!-- Кнопка удаления проекта -->
+        <form action="/project/{{ project.id }}/delete" method="POST" onsubmit="return confirm('Вы уверены, что хотите удалить этот проект и все его задачи?');">
+            <button type="submit" class="btn btn-outline-danger">Удалить проект</button>
+        </form>
     </div>
     {% endif %}
 </div>
