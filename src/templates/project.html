@@ -1,7 +1,6 @@
 {% extends 'base.html' %}
 {% block content %}
 
-<!-- Хлебные крошки -->
 <nav aria-label="breadcrumb">
     <ol class="breadcrumb">
         <li class="breadcrumb-item"><a href="/" class="text-decoration-none">Главная</a></li>
@@ -16,7 +15,6 @@
         <p class="text-muted mb-0">{{ project.description }}</p>
     </div>
     
-    <!-- Кнопка добавления задачи (только для админа) -->
     {% if current_user.role == 'admin' %}
     <div class="col-auto">
         <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addTaskModal">
@@ -26,22 +24,30 @@
     {% endif %}
 </div>
 
-<!-- Панель управления таблицей -->
-<div class="row mb-3">
+<!-- форма поиска и фильтрации -->
+<form method="GET" action="/project/{{ project.id }}" class="row mb-4">
     <div class="col-md-4">
-        <input type="text" class="form-control" placeholder="🔍 Поиск задач...">
+        <input type="text" name="search" class="form-control" placeholder="🔍 Поиск задач..." value="{{ request.args.get('search', '') }}">
     </div>
     <div class="col-md-3">
-        <select class="form-select">
-            <option>Фильтр: Все статусы</option>
-            <option>Ожидают (pending)</option>
-            <option>В работе (in_progress)</option>
-            <option>Готово (done)</option>
+        <select name="status" class="form-select" onchange="this.form.submit()">
+            <option value="">Все статусы</option>
+            <option value="pending" {% if request.args.get('status') == 'pending' %}selected{% endif %}>Ожидает</option>
+            <option value="in_progress" {% if request.args.get('status') == 'in_progress' %}selected{% endif %}>В работе</option>
+            <option value="done" {% if request.args.get('status') == 'done' %}selected{% endif %}>Готово</option>
         </select>
     </div>
-</div>
+    <div class="col-md-2">
+        <button type="submit" class="btn btn-secondary">Найти</button>
+    </div>
+    <!-- кнопка сброса фильтров -->
+    {% if request.args.get('search') or request.args.get('status') %}
+    <div class="col-md-2">
+        <a href="/project/{{ project.id }}" class="btn btn-outline-danger">Сбросить</a>
+    </div>
+    {% endif %}
+</form>
 
-<!-- Таблица задач -->
 <div class="card shadow-sm mb-4">
     <div class="table-responsive">
         <table class="table table-hover table-bordered mb-0 text-center align-middle">
@@ -78,19 +84,55 @@
                     </td>
                     <td>
                         {% if task.file_path %}
-                            📎 <a href="/{{ task.file_path }}" target="_blank">файл</a>
+                            📎 <a href="/{{ task.file_path }}" target="_blank" class="text-decoration-none">Скачать</a>
                         {% else %}
                             <span class="text-muted">-</span>
                         {% endif %}
                     </td>
                     <td>
-                        <button class="btn btn-sm btn-outline-secondary">✏️</button>
+                        <!-- кнопка редактирования вызывает модальное окно именно для этой задачи -->
+                        <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#editTaskModal{{ task.id }}">✏️ Изменить</button>
                     </td>
                 </tr>
+
+                <!-- Всплывающее окно редактирования для каждой задачи -->
+                <div class="modal fade" id="editTaskModal{{ task.id }}" tabindex="-1">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <form action="/task/{{ task.id }}/update" method="POST" enctype="multipart/form-data">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">Обновление: {{ task.title }}</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body text-start">
+                                    <div class="mb-3">
+                                        <label class="form-label">Изменить статус</label>
+                                        <select name="status" class="form-select">
+                                            <option value="pending" {% if task.status == 'pending' %}selected{% endif %}>Ожидает</option>
+                                            <option value="in_progress" {% if task.status == 'in_progress' %}selected{% endif %}>В работе</option>
+                                            <option value="done" {% if task.status == 'done' %}selected{% endif %}>Готово</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Прикрепить файл (отчет)</label>
+                                        <input type="file" name="file" class="form-control">
+                                        {% if task.file_path %}
+                                            <small class="text-success mt-1 d-block">Файл уже загружен. Загрузка нового заменит старый.</small>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="submit" class="btn btn-primary">Сохранить изменения</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
                 {% else %}
                 <tr>
                     <td colspan="6" class="text-center py-4 text-muted">
-                        В этом проекте пока нет задач.
+                        По вашему запросу задач не найдено.
                     </td>
                 </tr>
                 {% endfor %}
@@ -99,32 +141,31 @@
     </div>
 </div>
 
-<!-- Пагинация -->
+<!-- пагинация -->
 {% if tasks.pages > 1 %}
 <nav>
     <ul class="pagination justify-content-center">
         <li class="page-item {% if not tasks.has_prev %}disabled{% endif %}">
-            <a class="page-link" href="?page={{ tasks.prev_num }}">Previous</a>
+            <a class="page-link" href="?page={{ tasks.prev_num }}&search={{ request.args.get('search', '') }}&status={{ request.args.get('status', '') }}">Назад</a>
         </li>
-        
         {% for page_num in tasks.iter_pages() %}
             {% if page_num %}
                 <li class="page-item {% if page_num == tasks.page %}active{% endif %}">
-                    <a class="page-link" href="?page={{ page_num }}">{{ page_num }}</a>
+                    <a class="page-link" href="?page={{ page_num }}&search={{ request.args.get('search', '') }}&status={{ request.args.get('status', '') }}">{{ page_num }}</a>
                 </li>
             {% else %}
                 <li class="page-item disabled"><span class="page-link">...</span></li>
             {% endif %}
         {% endfor %}
-        
         <li class="page-item {% if not tasks.has_next %}disabled{% endif %}">
-            <a class="page-link" href="?page={{ tasks.next_num }}">Next</a>
+            <a class="page-link" href="?page={{ tasks.next_num }}&search={{ request.args.get('search', '') }}&status={{ request.args.get('status', '') }}">Вперед</a>
         </li>
     </ul>
 </nav>
 {% endif %}
 
-<!-- Модальное окно добавления задачи -->
+<!-- модалка добавления (только для админа) -->
+{% if current_user.role == 'admin' %}
 <div class="modal fade" id="addTaskModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -143,7 +184,6 @@
                         <select name="assignee_id" class="form-select">
                             <option value="">-- Без исполнителя --</option>
                             {% for u in users %}
-                                <!-- Не показываем админов в списке исполнителей -->
                                 {% if u.role == 'user' %}
                                     <option value="{{ u.id }}">{{ u.username }}</option>
                                 {% endif %}
@@ -152,12 +192,12 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
                     <button type="submit" class="btn btn-primary">Добавить</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
+{% endif %}
 
 {% endblock %}
