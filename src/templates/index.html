@@ -1,0 +1,81 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="row mb-4 align-items-center">
+    <div class="col">
+        <h2>Панель управления</h2>
+    </div>
+    <!-- показываем кнопку только админам -->
+    {% if current_user.role == 'admin' %}
+    <div class="col-auto">
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createProjectModal">
+            + Создать проект
+        </button>
+    </div>
+    {% endif %}
+</div>
+
+<div class="row">
+    <!-- левая часть экрана: список проектов -->
+    <div class="col-md-6">
+        <div class="list-group shadow-sm">
+            {% for project in projects %}
+                <!-- ссылка на будущую страницу проекта -->
+                <a href="/project/{{ project.id }}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center p-3">
+                    <div>
+                        <h5 class="mb-1 text-primary">{{ project.title }}</h5>
+                        <small class="text-muted">{{ project.description }}</small>
+                    </div>
+                    <!-- бейдж с количеством задач -->
+                    <span class="badge bg-secondary rounded-pill">{{ project.tasks|length }} задач</span>
+                </a>
+            {% else %}
+                <div class="alert alert-light border">
+                    Пока нет ни одного проекта.
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <!-- правая часть экрана: место под круговую диаграмму из макета -->
+    <div class="col-md-6">
+        <div class="card p-4 shadow-sm text-center h-100">
+            <h5 class="text-muted mb-4">Статистика задач</h5>
+            <div class="d-flex align-items-center justify-content-center h-100">
+                <div style="width: 200px; height: 200px; border-radius: 50%; border: 3px dashed #dee2e6; display: flex; align-items: center; justify-content: center;">
+                    <span class="text-muted small">график появится позже</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- всплывающее окно для создания проекта -->
+<div class="modal fade" id="createProjectModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form action="/create_project" method="POST">
+                <div class="modal-header">
+                    <h5 class="modal-title">Новый проект</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Название проекта</label>
+                        <input type="text" name="title" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Краткое описание</label>
+                        <textarea name="description" class="form-control" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Создать</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+{% endblock %}
