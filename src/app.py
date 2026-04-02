@@ -2,12 +2,17 @@ from flask import Flask, render_template, redirect, url_for, request, flash
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
 import os
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'super-secret-key-for-coursework'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///tasktracker.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# настройка папки для загрузки файлов
+app.config['UPLOAD_FOLDER'] = os.path.join('static', 'uploads')
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 db = SQLAlchemy(app)
 
@@ -38,8 +43,6 @@ class Project(db.Model):
     title = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text, nullable=True)
     owner_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    
-    # связь с задачами: если удалим проект, удалятся и все его задачи
     tasks = db.relationship('Task', backref='project', lazy=True, cascade="all, delete-orphan")
 
 # модель задачи
@@ -51,6 +54,9 @@ class Task(db.Model):
     file_path = db.Column(db.String(255), nullable=True) 
     project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
     assignee_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    
+    # связь с пользователем, чтобы легко получать логин исполнителя
+    assignee = db.relationship('User', backref='assigned_tasks', foreign_keys=[assignee_id])
 
 # создаем таблицы в базе при запуске (если их еще нет)
 with app.app_context():
@@ -72,7 +78,6 @@ def index():
 @app.route('/create_project', methods=['POST'])
 @login_required
 def create_project():
-    # обычные пользователи не могут создавать проекты
     if current_user.role != 'admin':
         flash('У вас нет прав для создания проектов.', 'danger')
         return redirect(url_for('index'))
@@ -87,6 +92,44 @@ def create_project():
         flash('Проект успешно создан!', 'success')
         
     return redirect(url_for('index'))
+
+
+# страница проекта со списком задач
+@app.route('/project/<int:project_id>')
+@login_required
+def project_view(project_id):
+    project = Project.query.get_or_404(project_id)
+    # получаем всех пользователей, чтобы админ мог назначить исполнителя
+    users = User.query.all() 
+    
+    # пагинация: получаем номер страницы из URL (по умолчанию 1) и выводим по 5 задач
+    page = request.args.get('page', 1, type=int)
+    tasks = Task.query.filter_by(project_id=project.id).paginate(page=page, per_page=5)
+    
+    return render_template('project.html', project=project, tasks=tasks, users=users)
+
+# добавление задачи в проект
+@app.route('/project/<int:project_id>/add_task', methods=['POST'])
+@login_required
+def add_task(project_id):
+    if current_user.role != 'admin':
+        flash('Только администратор может ставить задачи.', 'danger')
+        return redirect(url_for('project_view', project_id=project_id))
+        
+    title = request.form.get('title')
+    assignee_id = request.form.get('assignee_id')
+    
+    if title:
+        # если исполнитель не выбран, оставляем None
+        assignee_id = int(assignee_id) if assignee_id else None
+        
+        new_task = Task(title=title, project_id=project_id, assignee_id=assignee_id)
+        db.session.add(new_task)
+        db.session.commit()
+        flash('Задача успешно добавлена!', 'success')
+        
+    return redirect(url_for('project_view', project_id=project_id))
+
 
 # страница регистрации
 @app.route('/register', methods=['GET', 'POST'])

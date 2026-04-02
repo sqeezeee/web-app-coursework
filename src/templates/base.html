@@ -4,10 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TaskTracker</title>
+    <!-- подключаем bootstrap css для красоты -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body class="bg-light">
-    <!-- Навигационное меню -->
+    <!-- навигационное меню -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
         <div class="container">
             <a class="navbar-brand" href="/">TaskTracker</a>
@@ -33,7 +34,7 @@
         </div>
     </nav>
 
-    <!-- Место для сообщений об ошибках -->
+    <!-- место для сообщений об ошибках -->
     <div class="container">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
@@ -43,7 +44,11 @@
             {% endif %}
         {% endwith %}
         
+        <!-- сюда будут вставляться другие страницы -->
         {% block content %}{% endblock %}
     </div>
+
+    <!-- подключаем bootstrap JS (чтобы работали все всплывающие окна и кнопки) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

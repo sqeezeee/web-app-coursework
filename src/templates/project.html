@@ -1,0 +1,163 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<!-- Хлебные крошки -->
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/" class="text-decoration-none">Главная</a></li>
+        <li class="breadcrumb-item"><a href="/" class="text-decoration-none">Проекты</a></li>
+        <li class="breadcrumb-item active" aria-current="page">{{ project.title }}</li>
+    </ol>
+</nav>
+
+<div class="row mb-3 align-items-center">
+    <div class="col">
+        <h2 class="mb-0">Проект: {{ project.title }}</h2>
+        <p class="text-muted mb-0">{{ project.description }}</p>
+    </div>
+    
+    <!-- Кнопка добавления задачи (только для админа) -->
+    {% if current_user.role == 'admin' %}
+    <div class="col-auto">
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addTaskModal">
+            + Добавить задачу
+        </button>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Панель управления таблицей -->
+<div class="row mb-3">
+    <div class="col-md-4">
+        <input type="text" class="form-control" placeholder="🔍 Поиск задач...">
+    </div>
+    <div class="col-md-3">
+        <select class="form-select">
+            <option>Фильтр: Все статусы</option>
+            <option>Ожидают (pending)</option>
+            <option>В работе (in_progress)</option>
+            <option>Готово (done)</option>
+        </select>
+    </div>
+</div>
+
+<!-- Таблица задач -->
+<div class="card shadow-sm mb-4">
+    <div class="table-responsive">
+        <table class="table table-hover table-bordered mb-0 text-center align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>ID</th>
+                    <th>Название задачи</th>
+                    <th>Статус</th>
+                    <th>Исполнитель</th>
+                    <th>Файлы</th>
+                    <th>Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for task in tasks.items %}
+                <tr>
+                    <td>{{ task.id }}</td>
+                    <td class="text-start fw-bold">{{ task.title }}</td>
+                    <td>
+                        {% if task.status == 'pending' %}
+                            <span class="badge bg-secondary">Ожидает</span>
+                        {% elif task.status == 'in_progress' %}
+                            <span class="badge bg-warning text-dark">В работе</span>
+                        {% else %}
+                            <span class="badge bg-success">Готово</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if task.assignee %}
+                            {{ task.assignee.username }}
+                        {% else %}
+                            <span class="text-muted">Не назначен</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if task.file_path %}
+                            📎 <a href="/{{ task.file_path }}" target="_blank">файл</a>
+                        {% else %}
+                            <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-secondary">✏️</button>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" class="text-center py-4 text-muted">
+                        В этом проекте пока нет задач.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Пагинация -->
+{% if tasks.pages > 1 %}
+<nav>
+    <ul class="pagination justify-content-center">
+        <li class="page-item {% if not tasks.has_prev %}disabled{% endif %}">
+            <a class="page-link" href="?page={{ tasks.prev_num }}">Previous</a>
+        </li>
+        
+        {% for page_num in tasks.iter_pages() %}
+            {% if page_num %}
+                <li class="page-item {% if page_num == tasks.page %}active{% endif %}">
+                    <a class="page-link" href="?page={{ page_num }}">{{ page_num }}</a>
+                </li>
+            {% else %}
+                <li class="page-item disabled"><span class="page-link">...</span></li>
+            {% endif %}
+        {% endfor %}
+        
+        <li class="page-item {% if not tasks.has_next %}disabled{% endif %}">
+            <a class="page-link" href="?page={{ tasks.next_num }}">Next</a>
+        </li>
+    </ul>
+</nav>
+{% endif %}
+
+<!-- Модальное окно добавления задачи -->
+<div class="modal fade" id="addTaskModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form action="/project/{{ project.id }}/add_task" method="POST">
+                <div class="modal-header">
+                    <h5 class="modal-title">Новая задача</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Название задачи</label>
+                        <input type="text" name="title" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Назначить исполнителя</label>
+                        <select name="assignee_id" class="form-select">
+                            <option value="">-- Без исполнителя --</option>
+                            {% for u in users %}
+                                <!-- Не показываем админов в списке исполнителей -->
+                                {% if u.role == 'user' %}
+                                    <option value="{{ u.id }}">{{ u.username }}</option>
+                                {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Добавить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
