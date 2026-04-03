@@ -235,5 +235,30 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
+# удаление задачи и её файла (только для админа)
+@app.route('/task/<int:task_id>/delete', methods=['POST'])
+@login_required
+def delete_task(task_id):
+    task = Task.query.get_or_404(task_id)
+    project_id = task.project_id
+    
+    if current_user.role != 'admin':
+        flash('Только администратор может удалять задачи.', 'danger')
+        return redirect(url_for('project_view', project_id=project_id))
+    
+    # если к задаче был прикреплен файл — удаляем его из папки uploads
+    if task.file_path:
+        # формируем полный путь к файлу на компьютере
+        full_path = os.path.join(app.root_path, task.file_path)
+        if os.path.exists(full_path):
+            os.remove(full_path)
+            
+    # удаляем саму задачу из базы
+    db.session.delete(task)
+    db.session.commit()
+    
+    flash('Задача успешно удалена!', 'success')
+    return redirect(url_for('project_view', project_id=project_id))
+
 if __name__ == '__main__':
     app.run(debug=True)

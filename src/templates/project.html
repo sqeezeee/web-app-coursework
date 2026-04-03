@@ -94,8 +94,17 @@
                         {% endif %}
                     </td>
                     <td>
-                        <!-- кнопка редактирования вызывает модальное окно именно для этой задачи -->
-                        <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#editTaskModal{{ task.id }}">✏️ Изменить</button>
+                        <div class="d-flex justify-content-center gap-1">
+                            <!-- кнопка редактирования для всех, кто имеет доступ -->
+                            <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#editTaskModal{{ task.id }}" title="Редактировать">✏️</button>
+                            
+                            <!-- кнопка удаления только для админа -->
+                            {% if current_user.role == 'admin' %}
+                            <form action="/task/{{ task.id }}/delete" method="POST" onsubmit="return confirm('Вы уверены, что хотите удалить эту задачу?');">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Удалить">🗑️</button>
+                            </form>
+                            {% endif %}
+                        </div>
                     </td>
                 </tr>
 
