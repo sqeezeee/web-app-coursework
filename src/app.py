@@ -101,21 +101,28 @@ def create_project():
     return redirect(url_for('index'))
 
 
-# страница проекта (с рабочим поиском и фильтром)
+# страница проекта
 @app.route('/project/<int:project_id>')
 @login_required
 def project_view(project_id):
     project = Project.query.get_or_404(project_id)
     users = User.query.all() 
     
-    # базовый запрос: берем все задачи этого проекта
+    # считаем прогресс проекта
+    total_project_tasks = Task.query.filter_by(project_id=project.id).count()
+    done_project_tasks = Task.query.filter_by(project_id=project.id, status='done').count()
+    
+    # вычисляем процент (защита от деления на ноль, если задач еще нет)
+    if total_project_tasks > 0:
+        progress = int((done_project_tasks / total_project_tasks) * 100)
+    else:
+        progress = 0
+
     query = Task.query.filter_by(project_id=project.id)
     
-    # получаем параметры из поисковой строки
     search_query = request.args.get('search')
     status_filter = request.args.get('status')
     
-    # если пользователь что-то ищет, фильтруем базу данных
     if search_query:
         query = query.filter(Task.title.ilike(f'%{search_query}%'))
     if status_filter:
@@ -124,7 +131,8 @@ def project_view(project_id):
     page = request.args.get('page', 1, type=int)
     tasks = query.paginate(page=page, per_page=5)
     
-    return render_template('project.html', project=project, tasks=tasks, users=users)
+    # передаем progress в HTML-шаблон
+    return render_template('project.html', project=project, tasks=tasks, users=users, progress=progress)
 
 @app.route('/project/<int:project_id>/add_task', methods=['POST'])
 @login_required
