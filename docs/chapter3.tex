@@ -1,57 +1,86 @@
+\section{РАЗРАБОТКА ВЕБ-ПРИЛОЖЕНИЯ}
 
-\section*{Глава 3. Разработка веб-приложения}
-\addcontentsline{toc}{section}{Глава 3. Разработка веб-приложения}
-\stepcounter{section}
+\subsection{Реализация подсистемы аутентификации и проверки ролей}
 
-\subsection{Разработка базовой структуры приложения и вёрстка}
+Основой безопасности разрабатываемого приложения является подсистема аутентификации, реализованная с помощью библиотеки \texttt{Flask-Login}. Хранение паролей в базе данных осуществляется в зашифрованном виде с использованием криптографических хэш-функций из модуля \texttt{werkzeug.security} (функции \texttt{generate\_password\_hash} и \texttt{check\_password\_hash}).
 
-В соответствии с задачей 3.1, была реализована компонентная структура фронтенд-части
-на базе библиотеки \textbf{React.js}. Использование хуков (\textit{Hooks}) позволило
-эффективно управлять состоянием формы заказа. Пример базового компонента представлен
-в листинге~\ref{lst:component}.
+Для разграничения прав доступа была внедрена ролевая модель (RBAC). При выполнении критически важных действий (например, создание или удаление проекта) на стороне сервера происходит проверка атрибута \texttt{role} текущего пользователя.
 
-\begin{lstlisting}[caption={Пример структуры компонента карточки заказа}, label={lst:component}]
-// Комментарий 
-const OrderCard = ({ order }) => {
-  return (
-    <div className="order-card">
-      <h3>Заказ #{order.id}</h3>
-      <p>Адрес: {order.address}</p>
-      <button onClick={() => addToRoute(order.id)}>
-        Добавить в маршрут
-      </button>
-    </div>
-  );
-};
-\end{lstlisting}
+Листинг 1 --- Фрагмент кода проверки прав доступа при создании проекта
+\begin{Verbatim}[frame=single, numbers=left, fontsize=\small, xleftmargin=5mm, tabsize=4]
+@app.route('/create_project', methods=['POST'])
+@login_required
+def create_project():
+    if current_user.role != 'admin':
+        flash('У вас нет прав для создания проектов.', 'danger')
+        return redirect(url_for('index'))
+        
+    title = request.form.get('title')
+    description = request.form.get('description')
+    
+    if title:
+        new_project = Project(title=title, description=description, 
+                              owner_id=current_user.id)
+        db.session.add(new_project)
+        db.session.commit()
+    return redirect(url_for('index'))
+\end{Verbatim}
 
-\subsection{Реализация модуля авторизации}
+На рисунке \ref{fig:screen_login} представлен интерфейс страницы входа в систему.
 
-Согласно задаче 3.2, в системе реализована ролевая модель доступа. Для обеспечения
-безопасности используется протокол \textbf{JWT} (JSON Web Token). При входе в
-систему сервер генерирует токен, содержащий поле \texttt{role}, которое может
-принимать значения \texttt{'dispatcher'} или \texttt{'courier'}.
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=0.85\textwidth]{images/screen_login.png}
+    \caption{Интерфейс страницы регистрации пользователей}
+    \label{fig:screen_login}
+\end{figure}
 
-\subsection{Интеграция картографических сервисов}
+\clearpage 
 
-Ключевым этапом разработки (задача 3.4) стала интеграция API \linebreak \textbf{OpenStreetMap}
-через библиотеку \textit{Leaflet}. Для решения транспортной задачи был выбран
-жадный алгоритм с последующей оптимизацией методом локального поиска.
+\subsection{Разработка CRUD-интерфейсов и работы с файлами}
 
-Данные о маршруте передаются в формате JSON (см. листинг~\ref{lst:route_json}).
+Управление сущностями системы осуществляется через реализованные CRUD-интерфейсы (создание, чтение, обновление, удаление). Взаимодействие с реляционной базой данных SQLite инкапсулировано через объектно-реляционное отображение (ORM) \texttt{SQLAlchemy}.
 
-\begin{lstlisting}[float, floatplacement=ht!, caption={Структура данных оптимизированного маршрута}, label={lst:route_json}]
-{
-  "route_id": "r-101",
-  "courier_id": "u-45",
-  "waypoints": [
-    {"lat": 55.75, "lng": 37.61, "sequence": 1},
-    {"lat": 55.80, "lng": 37.70, "sequence": 2}
-  ],
-  "total_distance_km": 12.4
+Особое внимание уделено функции прикрепления файлов к задачам. Для защиты файловой системы сервера от потенциально вредоносных файлов используется утилита \texttt{secure\_filename}, которая нормализует имя загружаемого документа перед его сохранением в директорию \texttt{static/uploads}.
+
+На рисунке \ref{fig:screen_project} продемонстрирован интерфейс управления задачами внутри проекта, включающий возможности фильтрации, пагинации и управления жизненным циклом задачи.
+
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=0.9\textwidth]{images/screen_project.png}
+    \caption{Интерфейс управления задачами проекта}
+    \label{fig:screen_project}
+\end{figure}
+
+
+
+\subsection{Реализация модуля агрегирования данных}
+
+Для обеспечения администратора системы наглядной аналитикой был разработан модуль агрегирования данных. На серверной стороне с помощью агрегатных функций SQLAlchemy (метод \texttt{.count()}) выполняется подсчет задач, сгруппированных по их текущему статусу (ожидают, в работе, выполнено). 
+
+Полученные статистические данные передаются в HTML-шаблон, где на клиентской стороне визуализируются в виде интерактивной круговой диаграммы с использованием библиотеки \texttt{Chart.js}.
+
+Листинг 2 --- Фрагмент кода агрегации данных в базе
+\begin{Verbatim}[frame=single, numbers=left, fontsize=\small, xleftmargin=5mm, tabsize=4]
+# Агрегирование данных для круговой диаграммы
+total_tasks = Task.query.count()
+pending_tasks = Task.query.filter_by(status='pending').count()
+in_progress_tasks = Task.query.filter_by(status='in_progress').count()
+done_tasks = Task.query.filter_by(status='done').count()
+
+stats = {
+    'total': total_tasks,
+    'pending': pending_tasks,
+    'in_progress': in_progress_tasks,
+    'done': done_tasks
 }
-\end{lstlisting}
+\end{Verbatim}
 
-Как видно из листинга~\ref{lst:route_json}, каждая точка содержит порядковый
-номер (\texttt{sequence}), что позволяет курьеру следовать по оптимальному пути,
-рассчитанному на сервере.
+Результат работы модуля визуализации и агрегации представлен на главной панели управления системой (рисунок \ref{fig:screen_dashboard}).
+
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=0.9\textwidth]{images/screen_dashboard.png}
+    \caption{Главная панель управления (Дашборд) с круговой диаграммой}
+    \label{fig:screen_dashboard}
+\end{figure}

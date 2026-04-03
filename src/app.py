@@ -3,7 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
-import os
+import os, uuid
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'super-secret-key-for-coursework'
@@ -154,38 +154,7 @@ def add_task(project_id):
     return redirect(url_for('project_view', project_id=project_id))
 
 
-# редактирование задачи (смена статуса и загрузка файла)
-@app.route('/task/<int:task_id>/update', methods=['POST'])
-@login_required
-def update_task(task_id):
-    task = Task.query.get_or_404(task_id)
-    
-    # менять задачу может только админ и тот, кому она назначена
-    if current_user.role != 'admin' and current_user.id != task.assignee_id:
-        flash('Вы не можете редактировать чужую задачу.', 'danger')
-        return redirect(url_for('project_view', project_id=task.project_id))
-        
-    # обновляем статус
-    new_status = request.form.get('status')
-    if new_status:
-        task.status = new_status
-        
-    # сохраняем загруженный файл
-    if 'file' in request.files:
-        file = request.files['file']
-        if file and file.filename != '':
-            # задаем безопасное имя файла от Werkzeug
-            filename = secure_filename(file.filename) 
-            file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            file.save(file_path)
-            # сохраняем путь в базу данных
-            task.file_path = f"static/uploads/{filename}"
-            
-    db.session.commit()
-    flash('Задача обновлена!', 'success')
-    return redirect(url_for('project_view', project_id=task.project_id))
-
-# удаление проекта (только для админа)
+# удаление проекта
 @app.route('/project/<int:project_id>/delete', methods=['POST'])
 @login_required
 def delete_project(project_id):
@@ -194,11 +163,56 @@ def delete_project(project_id):
         return redirect(url_for('index'))
         
     project = Project.query.get_or_404(project_id)
+    
+    # перед удалением проекта из БД, проходимся по всем его задачам и удаляем их файлы с жесткого диска
+    for task in project.tasks:
+        if task.file_path:
+            full_path = os.path.join(app.root_path, task.file_path)
+            if os.path.exists(full_path):
+                os.remove(full_path)
+                
+    # SQLAlchemy каскадно удалит задачи из БД вместе с проектом
     db.session.delete(project)
     db.session.commit()
     
-    flash(f'Проект "{project.title}" был успешно удален.', 'success')
-    return redirect(url_for('index'))    
+    flash(f'Проект "{project.title}" и все его файлы успешно удалены.', 'success')
+    return redirect(url_for('index'))
+
+
+# редактирование задачи
+@app.route('/task/<int:task_id>/update', methods=['POST'])
+@login_required
+def update_task(task_id):
+    task = Task.query.get_or_404(task_id)
+    
+    if current_user.role != 'admin' and current_user.id != task.assignee_id:
+        flash('Вы не можете редактировать чужую задачу.', 'danger')
+        return redirect(url_for('project_view', project_id=task.project_id))
+        
+    new_status = request.form.get('status')
+    if new_status:
+        task.status = new_status
+        
+    if 'file' in request.files:
+        file = request.files['file']
+        if file and file.filename != '':
+            # 1. Если был старый файл - удаляем его с диска, чтобы не копить мусор
+            if task.file_path:
+                old_file_path = os.path.join(app.root_path, task.file_path)
+                if os.path.exists(old_file_path):
+                    os.remove(old_file_path)
+            
+            # 2. Генерируем уникальное имя файла, чтобы избежать перезаписи чужих файлов
+            original_filename = secure_filename(file.filename)
+            unique_filename = f"{uuid.uuid4().hex}_{original_filename}"
+            
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+            file.save(file_path)
+            task.file_path = f"static/uploads/{unique_filename}"
+            
+    db.session.commit()
+    flash('Задача обновлена!', 'success')
+    return redirect(url_for('project_view', project_id=task.project_id)) 
 
 # Авторизация
 
@@ -222,19 +236,28 @@ def register():
         return redirect(url_for('login'))
     return render_template('register.html')
 
+# страница входа 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
         return redirect(url_for('index'))
+        
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
+        # Получаем значение галочки (если нажата - будет True, иначе False)
+        remember = True if request.form.get('remember') else False
+        
         user = User.query.filter_by(username=username).first()
+        
         if user and user.check_password(password):
-            login_user(user)
+            # Передаем параметр remember во Flask-Login
+            login_user(user, remember=remember)
+            flash(f'С возвращением, {user.username}!', 'success')
             return redirect(url_for('index'))
         else:
             flash('Неверный логин или пароль.', 'danger')
+            
     return render_template('login.html')
 
 @app.route('/logout')
