@@ -9,6 +9,7 @@
 *.fdb_latexmk
 *.synctex.gz
 *.db
+*.DS_Store
 
 node_modules/
 .env
