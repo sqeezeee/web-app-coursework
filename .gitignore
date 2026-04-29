@@ -18,6 +18,7 @@ __pycache__/
 *.pyc
 venv/
 env/
+.venv/
 
 # База данных и загруженные файлы
 src/instance/
