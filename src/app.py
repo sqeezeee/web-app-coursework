@@ -7,7 +7,7 @@ import os, uuid
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'super-secret-key-for-coursework'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///tasktracker.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL') or 'postgresql://postgres:mysecretpassword@localhost:5432/postgres'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # настройка папки для загрузки файлов
@@ -31,7 +31,7 @@ class User(UserMixin, db.Model):
     role = db.Column(db.String(20), default='user') 
 
     def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
+        self.password_hash = generate_password_hash(password, method='pbkdf2:sha256')
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
