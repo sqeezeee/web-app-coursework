@@ -67,15 +67,26 @@ def load_user(user_id):
 @app.route('/')
 @login_required
 def index():
-    projects = Project.query.all()
-    
-    # агрегирование данных для круговой диаграммы
-    total_tasks = Task.query.count()
-    pending_tasks = Task.query.filter_by(status='pending').count()
-    in_progress_tasks = Task.query.filter_by(status='in_progress').count()
-    done_tasks = Task.query.filter_by(status='done').count()
-    
-    # упаковываем статистику в словарь, чтобы передать в HTML
+    # если зашел Админ - показываем ему абсолютно все проекты и всю статистику
+    if current_user.role == 'admin':
+        projects = Project.query.all()
+        
+        total_tasks = Task.query.count()
+        pending_tasks = Task.query.filter_by(status='pending').count()
+        in_progress_tasks = Task.query.filter_by(status='in_progress').count()
+        done_tasks = Task.query.filter_by(status='done').count()
+        
+    # если зашел обычный Пользователь - фильтруем данные
+    else:
+        # 1. Показываем только те проекты, в которых у пользователя есть задачи
+        projects = Project.query.join(Task).filter(Task.assignee_id == current_user.id).distinct().all()
+        
+        # 2. Статистика на дашборде показывает только ЕГО ЛИЧНЫЕ задачи, а не чужие
+        total_tasks = Task.query.filter_by(assignee_id=current_user.id).count()
+        pending_tasks = Task.query.filter_by(assignee_id=current_user.id, status='pending').count()
+        in_progress_tasks = Task.query.filter_by(assignee_id=current_user.id, status='in_progress').count()
+        done_tasks = Task.query.filter_by(assignee_id=current_user.id, status='done').count()
+
     stats = {
         'total': total_tasks,
         'pending': pending_tasks,
@@ -107,6 +118,14 @@ def create_project():
 def project_view(project_id):
     project = Project.query.get_or_404(project_id)
     users = User.query.all() 
+    
+    # Защита прав доступа
+    # Если это обычный пользователь, проверяем, есть ли у него задачи в этом проекте
+    if current_user.role != 'admin':
+        user_has_tasks = Task.query.filter_by(project_id=project.id, assignee_id=current_user.id).first()
+        if not user_has_tasks:
+            flash('У вас нет доступа к этому проекту.', 'danger')
+            return redirect(url_for('index'))
     
     # считаем прогресс проекта
     total_project_tasks = Task.query.filter_by(project_id=project.id).count()
