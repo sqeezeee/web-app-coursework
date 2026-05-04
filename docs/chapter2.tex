@@ -16,7 +16,7 @@
 Для удовлетворения этих потребностей и обеспечения безопасности системы была спроектирована ролевая модель доступа (RBAC). Исходя из паттернов поведения пользователей, выделены две ключевые роли:
 \begin{itemize}
     \item \textbf{Администратор (Менеджер проекта):} выступает в роли руководителя или координатора. Обладает полными правами в системе. Занимается созданием новых проектов, управлением списком задач и осуществляет глобальный контроль за ходом выполнения работ через аналитические дашборды.
-    \item \textbf{Пользователь (Исполнитель):} выступает в роли рядового участника команды. Имеет ограниченный доступ: видит только те проекты, в которые был приглашен (где имеет назначенные задачи). Основная задача данной роли — брать задачи в работу, изменять их статус по мере выполнения и прикреплять файлы с результатами работы.
+    \item \textbf{Пользователь (Исполнитель):} выступает в роли рядового участника команды. Имеет ограниченный доступ: видит только те проекты, в которые был приглашен. Основная задача данной роли — брать задачи в работу, изменять их статус по мере выполнения и прикреплять файлы с результатами работы.
 \end{itemize}
 
 \subsection{Описание функциональности приложения}
@@ -41,40 +41,113 @@
     \label{fig:usecase}
 \end{figure}
 
-\clearpage % Запрещаем тексту из пункта 2.3 обтекать эту картинку
+\clearpage % Жесткий разрыв, чтобы диаграмма и новый раздел не наезжали друг на друга
 
 \subsection{Проектирование модели данных}
 
-Архитектура базы данных спроектирована с учетом требований нормализации \cite{database_design} для исключения избыточности данных. В качестве средства взаимодействия с базой данных используется ORM-библиотека SQLAlchemy. Логическая модель данных включает три основные связанные сущности: \texttt{users} (Пользователи), \texttt{projects} (Проекты) и \texttt{tasks} (Задачи). 
+Проектирование базы данных веб-приложения осуществлялось в два этапа: разработка логической и физической схем. В качестве концептуальной основы использовалась ER-модель (модель «Сущность-Связь»). На рисунке \ref{fig:er_diagram} представлена ER-диаграмма, иллюстрирующая связи между основными объектами системы.
 
-Структура основной таблицы задач представлена в таблице \ref{tab:tasks_db}.
+\begin{figure}[h!]
+    \centering
+    % Делаем картинку уже, так как она вертикальная
+    \includegraphics[width=0.45\textwidth]{images/er_diagram.png}
+    \caption{ER-диаграмма базы данных}
+    \label{fig:er_diagram}
+\end{figure}
+
+\textbf{Логическая схема базы данных} включает четыре основные сущности:
+\begin{itemize}
+    \item \texttt{users} (Пользователи) --- хранит учетные данные и роль пользователя.
+    \item \texttt{projects} (Проекты) --- группирует задачи, имеет связь «один-ко-многим» с таблицей пользователей (создатель проекта).
+    \item \texttt{tasks} (Задачи) --- ключевая сущность, содержащая статус выполнения. Связана с проектами и пользователями-исполнителями.
+    \item \texttt{attachments} (Вложения) --- сущность, введенная для обеспечения возможности прикрепления множества файлов к одной задаче (связь «один-ко-многим» с таблицей задач).
+\end{itemize}
+
+
+\textbf{Физическая схема базы данных} описывает реализацию таблиц в СУБД с указанием типов данных и ограничений. Проектирование физической модели выполнено с соблюдением нормальных форм для исключения избыточности данных. Структуры разработанных таблиц представлены ниже.
+
+\begin{table}[h!]
+\centering
+\caption{Структура таблицы пользователей (users)}
+\label{tab:users_db}
+\begin{tabular}{|p{0.25\textwidth}|p{0.2\textwidth}|p{0.45\textwidth}|}
+\hline
+\textbf{Поле} & \textbf{Тип данных} & \textbf{Ограничения и описание} \\
+\hline
+id & INTEGER & PRIMARY KEY \\
+\hline
+username & VARCHAR(50) & UNIQUE, NOT NULL \\
+\hline
+password\_hash & VARCHAR(128) & NOT NULL (хэш пароля) \\
+\hline
+role & VARCHAR(20) & DEFAULT 'user' \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{table}[h!]
+\centering
+\caption{Структура таблицы проектов (projects)}
+\label{tab:projects_db}
+\begin{tabular}{|p{0.25\textwidth}|p{0.2\textwidth}|p{0.45\textwidth}|}
+\hline
+\textbf{Поле} & \textbf{Тип данных} & \textbf{Ограничения и описание} \\
+\hline
+id & INTEGER & PRIMARY KEY \\
+\hline
+title & VARCHAR(100) & NOT NULL \\
+\hline
+description & TEXT & NULL \\
+\hline
+owner\_id & INTEGER & FOREIGN KEY $\rightarrow$ users.id \\
+\hline
+\end{tabular}
+\end{table}
 
 \begin{table}[h!]
 \centering
 \caption{Структура таблицы задач (tasks)}
 \label{tab:tasks_db}
-\begin{tabular}{|p{0.2\textwidth}|p{0.15\textwidth}|p{0.25\textwidth}|p{0.3\textwidth}|}
+\begin{tabular}{|p{0.25\textwidth}|p{0.2\textwidth}|p{0.45\textwidth}|}
 \hline
-\textbf{Поле} & \textbf{Тип} & \textbf{Ограничение} & \textbf{Описание} \\
+\textbf{Поле} & \textbf{Тип данных} & \textbf{Ограничения и описание} \\
 \hline
-id & INTEGER & PRIMARY KEY & Уникальный идентификатор задачи \\
+id & INTEGER & PRIMARY KEY \\
 \hline
-title & VARCHAR & NOT NULL & Краткое название задачи \\
+title & VARCHAR(100) & NOT NULL \\
 \hline
-status & VARCHAR & DEFAULT 'pending' & Статус (pending, in\_progress, done) \\
+status & VARCHAR(20) & DEFAULT 'pending' \\
 \hline
-file\_path & VARCHAR & NULL & Относительный путь к загруженному файлу \\
+project\_id & INTEGER & FOREIGN KEY $\rightarrow$ projects.id \\
 \hline
-project\_id & INTEGER & FOREIGN KEY & Ссылка на таблицу проектов \\
-\hline
-assignee\_id & INTEGER & FOREIGN KEY & Назначенный пользователь (исполнитель) \\
+assignee\_id & INTEGER & FOREIGN KEY $\rightarrow$ users.id (NULL разрешен) \\
 \hline
 \end{tabular}
 \end{table}
 
-Связь между таблицами реализуется посредством внешних ключей (Foreign Key), что гарантирует ссылочную целостность (например, при удалении проекта каскадно удаляются все связанные с ним задачи).
+\clearpage
 
-\clearpage % Запрещаем тексту из пункта 2.4 налезать на таблицу
+\begin{table}[h!]
+\centering
+\caption{Структура таблицы вложений (attachments)}
+\label{tab:attachments_db}
+\begin{tabular}{|p{0.25\textwidth}|p{0.2\textwidth}|p{0.45\textwidth}|}
+\hline
+\textbf{Поле} & \textbf{Тип данных} & \textbf{Ограничения и описание} \\
+\hline
+id & INTEGER & PRIMARY KEY \\
+\hline
+file\_name & VARCHAR(255) & NOT NULL (Оригинальное имя файла) \\
+\hline
+file\_path & VARCHAR(255) & NOT NULL (Путь на сервере) \\
+\hline
+task\_id & INTEGER & FOREIGN KEY $\rightarrow$ tasks.id \\
+\hline
+\end{tabular}
+\end{table}
+
+Связи между таблицами реализованы посредством внешних ключей (Foreign Key). Для обеспечения ссылочной целостности базы данных на уровне ORM SQLAlchemy настроено каскадное удаление (параметр \texttt{cascade="all, delete-orphan"}): при удалении проекта или задачи автоматически удаляются все зависимые сущности.
+
 
 \subsection{Разработка макетов страниц}
 

@@ -14,7 +14,6 @@
         <h2 class="mb-0">Проект: {{ project.title }}</h2>
         <p class="text-muted mb-2">{{ project.description }}</p>
         
-        <!-- прогресс-бар === -->
         <div class="d-flex align-items-center gap-2">
             <span class="small text-muted fw-bold">Готовность:</span>
             <div class="progress flex-grow-1 shadow-sm" style="height: 18px; max-width: 300px;">
@@ -25,7 +24,6 @@
                 </div>
             </div>
         </div>
-        
     </div>
     
     {% if current_user.role == 'admin' %}
@@ -33,7 +31,7 @@
         <button type="button" class="btn btn-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#addTaskModal">
             + Добавить задачу
         </button>
-        <form action="/project/{{ project.id }}/delete" method="POST" onsubmit="return confirm('Вы уверены, что хотите удалить этот проект и все его задачи?');">
+        <form action="/project/{{ project.id }}/delete" method="POST" onsubmit="return confirm('Вы уверены, что хотите удалить этот проект и ВСЕ его файлы?');">
             <button type="submit" class="btn btn-outline-danger shadow-sm">Удалить проект</button>
         </form>
     </div>
@@ -56,7 +54,6 @@
     <div class="col-md-2">
         <button type="submit" class="btn btn-secondary">Найти</button>
     </div>
-    <!-- кнопка сброса фильтров -->
     {% if request.args.get('search') or request.args.get('status') %}
     <div class="col-md-2">
         <a href="/project/{{ project.id }}" class="btn btn-outline-danger">Сбросить</a>
@@ -73,7 +70,7 @@
                     <th>Название задачи</th>
                     <th>Статус</th>
                     <th>Исполнитель</th>
-                    <th>Файлы</th>
+                    <th style="min-width: 250px;">Файлы</th>
                     <th>Действия</th>
                 </tr>
             </thead>
@@ -98,21 +95,34 @@
                             <span class="text-muted">Не назначен</span>
                         {% endif %}
                     </td>
-                    <td>
-                        {% if task.file_path %}
-                            📎 <a href="/{{ task.file_path }}" target="_blank" class="text-decoration-none">Скачать</a>
+                    <td class="text-start">
+                        <!-- ВЫВОД СПИСКА ФАЙЛОВ -->
+                        {% if task.attachments %}
+                            <ul class="list-unstyled mb-0 small">
+                            {% for file in task.attachments %}
+                                <li class="mb-1 d-flex justify-content-between align-items-center bg-light p-1 rounded border">
+                                    <a href="/{{ file.file_path }}" target="_blank" class="text-decoration-none text-truncate" style="max-width: 180px;" title="{{ file.file_name }}">
+                                        📎 {{ file.file_name }}
+                                    </a>
+                                    <!-- Кнопка удаления конкретного файла (крестик) -->
+                                    {% if current_user.role == 'admin' or current_user.id == task.assignee_id %}
+                                    <form action="/attachment/{{ file.id }}/delete" method="POST" class="m-0 p-0" onsubmit="return confirm('Удалить этот файл?');">
+                                        <button type="submit" class="btn btn-sm btn-link text-danger p-0 text-decoration-none">❌</button>
+                                    </form>
+                                    {% endif %}
+                                </li>
+                            {% endfor %}
+                            </ul>
                         {% else %}
-                            <span class="text-muted">-</span>
+                            <span class="text-muted text-center d-block">-</span>
                         {% endif %}
                     </td>
                     <td>
                         <div class="d-flex justify-content-center gap-1">
-                            <!-- кнопка редактирования для всех, кто имеет доступ -->
                             <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#editTaskModal{{ task.id }}" title="Редактировать">✏️</button>
                             
-                            <!-- кнопка удаления только для админа -->
                             {% if current_user.role == 'admin' %}
-                            <form action="/task/{{ task.id }}/delete" method="POST" onsubmit="return confirm('Вы уверены, что хотите удалить эту задачу?');">
+                            <form action="/task/{{ task.id }}/delete" method="POST" onsubmit="return confirm('Удалить задачу и все прикрепленные к ней файлы?');">
                                 <button type="submit" class="btn btn-sm btn-outline-danger" title="Удалить">🗑️</button>
                             </form>
                             {% endif %}
@@ -120,7 +130,7 @@
                     </td>
                 </tr>
 
-                <!-- Всплывающее окно редактирования для каждой задачи -->
+                <!-- Всплывающее окно редактирования -->
                 <div class="modal fade" id="editTaskModal{{ task.id }}" tabindex="-1">
                     <div class="modal-dialog">
                         <div class="modal-content">
@@ -138,12 +148,28 @@
                                             <option value="done" {% if task.status == 'done' %}selected{% endif %}>Готово</option>
                                         </select>
                                     </div>
+
+                                    <!-- Выбор исполнителя -->
+                                    {% if current_user.role == 'admin' %}
                                     <div class="mb-3">
-                                        <label class="form-label">Прикрепить файл (отчет)</label>
-                                        <input type="file" name="file" class="form-control">
-                                        {% if task.file_path %}
-                                            <small class="text-success mt-1 d-block">Файл уже загружен. Загрузка нового заменит старый.</small>
-                                        {% endif %}
+                                        <label class="form-label">Изменить исполнителя</label>
+                                        <select name="assignee_id" class="form-select">
+                                            <option value="">-- Без исполнителя --</option>
+                                            {% for u in users %}
+                                                {% if u.role == 'user' %}
+                                                    <!-- Если id юзера совпадает с текущим исполнителем задачи, делаем его selected -->
+                                                    <option value="{{ u.id }}" {% if task.assignee_id == u.id %}selected{% endif %}>{{ u.username }}</option>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    {% endif %}
+
+                                    <div class="mb-3">
+                                        <label class="form-label">Прикрепить файлы</label>
+                                        <!-- атрибут multiple позволяет выделить мышкой сразу несколько файлов -->
+                                        <input type="file" name="files" class="form-control" multiple>
+                                        <small class="text-muted mt-1 d-block">Можно выбрать несколько файлов. Старые файлы не удалятся.</small>
                                     </div>
                                 </div>
                                 <div class="modal-footer">
@@ -153,12 +179,9 @@
                         </div>
                     </div>
                 </div>
-
                 {% else %}
                 <tr>
-                    <td colspan="6" class="text-center py-4 text-muted">
-                        По вашему запросу задач не найдено.
-                    </td>
+                    <td colspan="6" class="text-center py-4 text-muted">По вашему запросу задач не найдено.</td>
                 </tr>
                 {% endfor %}
             </tbody>
