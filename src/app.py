@@ -56,10 +56,8 @@ class Task(db.Model):
     assignee_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     
     assignee = db.relationship('User', backref='assigned_tasks', foreign_keys=[assignee_id])
-    # Связь 1-ко-Многим с новой таблицей файлов
     attachments = db.relationship('Attachment', backref='task', lazy=True, cascade="all, delete-orphan")
 
-# 4-Я СУЩНОСТЬ: Вложения (прикрепляемые файлы)
 class Attachment(db.Model):
     __tablename__ = 'attachments'
     id = db.Column(db.Integer, primary_key=True)
@@ -125,7 +123,7 @@ def delete_project(project_id):
         
     project = Project.query.get_or_404(project_id)
     
-    # Физическое удаление ВСЕХ файлов проекта с сервера
+    # Физическое удаление всех файлов проекта с сервера
     for task in project.tasks:
         for attachment in task.attachments:
             full_path = os.path.join(app.root_path, attachment.file_path)
