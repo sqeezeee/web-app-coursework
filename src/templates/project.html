@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% block content %}
 
+<!-- хлебные крошки -->
 <nav aria-label="breadcrumb">
     <ol class="breadcrumb">
         <li class="breadcrumb-item"><a href="/" class="text-decoration-none">Главная</a></li>
@@ -9,6 +10,7 @@
     </ol>
 </nav>
 
+<!-- ШАПКА ПРОЕКТА -->
 <div class="row mb-4 align-items-center">
     <div class="col">
         <h2 class="mb-0">Проект: {{ project.title }}</h2>
@@ -27,12 +29,16 @@
     </div>
     
     {% if current_user.role == 'admin' %}
-    <div class="col-auto d-flex gap-2">
+    <div class="col-auto d-flex flex-wrap gap-2 justify-content-end">
         <button type="button" class="btn btn-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#addTaskModal">
             + Добавить задачу
         </button>
-        <form action="/project/{{ project.id }}/delete" method="POST" onsubmit="return confirm('Вы уверены, что хотите удалить этот проект и ВСЕ его файлы?');">
-            <button type="submit" class="btn btn-outline-danger shadow-sm">Удалить проект</button>
+        <!-- КНОПКА ИЗМЕНЕНИЯ ПРОЕКТА -->
+        <button type="button" class="btn btn-outline-secondary shadow-sm" data-bs-toggle="modal" data-bs-target="#editProjectModal">
+            Изменить проект
+        </button>
+        <form action="/project/{{ project.id }}/delete" method="POST" class="m-0" onsubmit="return confirm('Вы уверены, что хотите удалить этот проект и ВСЕ его файлы?');">
+            <button type="submit" class="btn btn-outline-danger shadow-sm">Удалить</button>
         </form>
     </div>
     {% endif %}
@@ -61,24 +67,29 @@
     {% endif %}
 </form>
 
+<!-- ТАБЛИЦА ЗАДАЧ -->
 <div class="card shadow-sm mb-4">
     <div class="table-responsive">
         <table class="table table-hover table-bordered mb-0 text-center align-middle">
             <thead class="table-light">
                 <tr>
-                    <th>ID</th>
-                    <th>Название задачи</th>
-                    <th>Статус</th>
-                    <th>Исполнитель</th>
-                    <th style="min-width: 250px;">Файлы</th>
-                    <th>Действия</th>
+                    <th style="width: 5%;">ID</th>
+                    <th style="width: 45%;">Название задачи</th>
+                    <th style="width: 15%;">Статус</th>
+                    <th style="width: 25%;">Исполнитель</th>
+                    <th style="width: 10%;">Действия</th>
                 </tr>
             </thead>
             <tbody>
                 {% for task in tasks.items %}
                 <tr>
                     <td>{{ task.id }}</td>
-                    <td class="text-start fw-bold">{{ task.title }}</td>
+                    <td class="text-start fw-bold">
+                        <!-- НАЗВАНИЕ КЛИКАБЕЛЬНО! Открывает окно ПРОСМОТРА -->
+                        <a href="#" class="text-decoration-none" data-bs-toggle="modal" data-bs-target="#viewTaskModal{{ task.id }}">
+                            {{ task.title }}
+                        </a>
+                    </td>
                     <td>
                         {% if task.status == 'pending' %}
                             <span class="badge bg-secondary">Ожидает</span>
@@ -95,34 +106,17 @@
                             <span class="text-muted">Не назначен</span>
                         {% endif %}
                     </td>
-                    <td class="text-start">
-                        <!-- ВЫВОД СПИСКА ФАЙЛОВ -->
-                        {% if task.attachments %}
-                            <ul class="list-unstyled mb-0 small">
-                            {% for file in task.attachments %}
-                                <li class="mb-1 d-flex justify-content-between align-items-center bg-light p-1 rounded border">
-                                    <a href="/{{ file.file_path }}" target="_blank" class="text-decoration-none text-truncate" style="max-width: 180px;" title="{{ file.file_name }}">
-                                        📎 {{ file.file_name }}
-                                    </a>
-                                    <!-- Кнопка удаления конкретного файла (крестик) -->
-                                    {% if current_user.role == 'admin' or current_user.id == task.assignee_id %}
-                                    <form action="/attachment/{{ file.id }}/delete" method="POST" class="m-0 p-0" onsubmit="return confirm('Удалить этот файл?');">
-                                        <button type="submit" class="btn btn-sm btn-link text-danger p-0 text-decoration-none">❌</button>
-                                    </form>
-                                    {% endif %}
-                                </li>
-                            {% endfor %}
-                            </ul>
-                        {% else %}
-                            <span class="text-muted text-center d-block">-</span>
-                        {% endif %}
-                    </td>
                     <td>
                         <div class="d-flex justify-content-center gap-1">
+                            <!-- Карандашик: Открывает окно РЕДАКТИРОВАНИЯ -->
+                            {% if current_user.role == 'admin' or current_user.id == task.assignee_id %}
                             <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#editTaskModal{{ task.id }}" title="Редактировать">✏️</button>
+                            {% else %}
+                            <button class="btn btn-sm btn-outline-secondary" disabled>✏️</button>
+                            {% endif %}
                             
                             {% if current_user.role == 'admin' %}
-                            <form action="/task/{{ task.id }}/delete" method="POST" onsubmit="return confirm('Удалить задачу и все прикрепленные к ней файлы?');">
+                            <form action="/task/{{ task.id }}/delete" method="POST" class="m-0" onsubmit="return confirm('Удалить задачу и все прикрепленные к ней файлы?');">
                                 <button type="submit" class="btn btn-sm btn-outline-danger" title="Удалить">🗑️</button>
                             </form>
                             {% endif %}
@@ -130,34 +124,104 @@
                     </td>
                 </tr>
 
-                <!-- Всплывающее окно редактирования -->
+                <!-- === 1. МОДАЛЬНОЕ ОКНО ПРОСМОТРА (ТОЛЬКО ЧТЕНИЕ) === -->
+                <div class="modal fade" id="viewTaskModal{{ task.id }}" tabindex="-1">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header bg-light">
+                                <h5 class="modal-title fw-bold text-primary">Задача #{{ task.id }}: {{ task.title }}</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body text-start">
+                                
+                                <!-- ОПИСАНИЕ ЗАДАЧИ -->
+                                <div class="mb-4">
+                                    <h6 class="fw-bold border-bottom pb-2">Описание:</h6>
+                                    {% if task.description %}
+                                        <p class="text-muted" style="white-space: pre-wrap;">{{ task.description }}</p>
+                                    {% else %}
+                                        <p class="text-muted fst-italic">Описание отсутствует.</p>
+                                    {% endif %}
+                                </div>
+
+                                <div class="row mb-4">
+                                    <!-- МАТЕРИАЛЫ ОТ МЕНЕДЖЕРА -->
+                                    <div class="col-md-6 border-end">
+                                        <h6 class="fw-bold text-secondary"><small>ВЛОЖЕНИЯ ОТ АДМИНИСТРАТОРА</small></h6>
+                                        <ul class="list-unstyled small">
+                                            <!-- Сначала фильтруем файлы админа в отдельный список -->
+                                            {% set admin_files = task.attachments | selectattr('uploader.role', 'equalto', 'admin') | list %}
+                                            
+                                            {% for file in admin_files %}
+                                                <li class="mb-2 d-flex justify-content-between align-items-center bg-light p-2 rounded">
+                                                    <a href="/{{ file.file_path }}" target="_blank" class="text-decoration-none text-truncate" style="max-width: 80%;">📎 {{ file.file_name }}</a>
+                                                    {% if current_user.role == 'admin' %}
+                                                    <a href="#" onclick="if(confirm('Удалить?')) { document.getElementById('del-file-{{ file.id }}').submit(); }" class="text-danger text-decoration-none">❌</a>
+                                                    {% endif %}
+                                                </li>
+                                            {% else %}
+                                                <!-- Сработает, только если список admin_files абсолютно пуст -->
+                                                <li class="text-muted fst-italic">Нет инструкций.</li>
+                                            {% endfor %}
+                                        </ul>
+                                    </div>
+
+                                    <!-- ОТЧЕТЫ ОТ ИСПОЛНИТЕЛЯ -->
+                                    <div class="col-md-6">
+                                        <h6 class="fw-bold text-success"><small>РЕЗУЛЬТАТЫ РАБОТЫ (ОТЧЕТЫ)</small></h6>
+                                        <ul class="list-unstyled small">
+                                            <!-- Фильтруем файлы исполнителя в отдельный список -->
+                                            {% set user_files = task.attachments | selectattr('uploader.role', 'equalto', 'user') | list %}
+                                            
+                                            {% for file in user_files %}
+                                                <li class="mb-2 d-flex justify-content-between align-items-center bg-light p-2 rounded border-success border">
+                                                    <a href="/{{ file.file_path }}" target="_blank" class="text-decoration-none text-truncate" style="max-width: 80%;">📄 {{ file.file_name }}</a>
+                                                    {% if current_user.role == 'admin' or current_user.id == task.assignee_id %}
+                                                    <a href="#" onclick="if(confirm('Удалить?')) { document.getElementById('del-file-{{ file.id }}').submit(); }" class="text-danger text-decoration-none">❌</a>
+                                                    {% endif %}
+                                                </li>
+                                            {% else %}
+                                                <li class="text-muted fst-italic">Нет отчетов.</li>
+                                            {% endfor %}
+                                        </ul>
+                                    </div>
+                                </div>
+
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- === 2. МОДАЛЬНОЕ ОКНО РЕДАКТИРОВАНИЯ (ПО КАРАНДАШИКУ) === -->
+                {% if current_user.role == 'admin' or current_user.id == task.assignee_id %}
                 <div class="modal fade" id="editTaskModal{{ task.id }}" tabindex="-1">
                     <div class="modal-dialog">
                         <div class="modal-content">
                             <form action="/task/{{ task.id }}/update" method="POST" enctype="multipart/form-data">
                                 <div class="modal-header">
-                                    <h5 class="modal-title">Обновление: {{ task.title }}</h5>
+                                    <h5 class="modal-title">Обновление задачи #{{ task.id }}</h5>
                                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                 </div>
                                 <div class="modal-body text-start">
-                                    <div class="mb-3">
-                                        <label class="form-label">Изменить статус</label>
-                                        <select name="status" class="form-select">
-                                            <option value="pending" {% if task.status == 'pending' %}selected{% endif %}>Ожидает</option>
-                                            <option value="in_progress" {% if task.status == 'in_progress' %}selected{% endif %}>В работе</option>
-                                            <option value="done" {% if task.status == 'done' %}selected{% endif %}>Готово</option>
-                                        </select>
-                                    </div>
-
-                                    <!-- Выбор исполнителя -->
+                                    
                                     {% if current_user.role == 'admin' %}
                                     <div class="mb-3">
-                                        <label class="form-label">Изменить исполнителя</label>
+                                        <label class="form-label">Название задачи</label>
+                                        <input type="text" name="title" class="form-control" value="{{ task.title }}" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Описание задачи</label>
+                                        <textarea name="description" class="form-control" rows="4">{{ task.description or '' }}</textarea>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Исполнитель</label>
                                         <select name="assignee_id" class="form-select">
                                             <option value="">-- Без исполнителя --</option>
                                             {% for u in users %}
                                                 {% if u.role == 'user' %}
-                                                    <!-- Если id юзера совпадает с текущим исполнителем задачи, делаем его selected -->
                                                     <option value="{{ u.id }}" {% if task.assignee_id == u.id %}selected{% endif %}>{{ u.username }}</option>
                                                 {% endif %}
                                             {% endfor %}
@@ -166,22 +230,38 @@
                                     {% endif %}
 
                                     <div class="mb-3">
-                                        <label class="form-label">Прикрепить файлы</label>
-                                        <!-- атрибут multiple позволяет выделить мышкой сразу несколько файлов -->
-                                        <input type="file" name="files" class="form-control" multiple>
-                                        <small class="text-muted mt-1 d-block">Можно выбрать несколько файлов. Старые файлы не удалятся.</small>
+                                        <label class="form-label">Изменить статус</label>
+                                        <select name="status" class="form-select">
+                                            <option value="pending" {% if task.status == 'pending' %}selected{% endif %}>Ожидает</option>
+                                            <option value="in_progress" {% if task.status == 'in_progress' %}selected{% endif %}>В работе</option>
+                                            <option value="done" {% if task.status == 'done' %}selected{% endif %}>Готово</option>
+                                        </select>
                                     </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Прикрепить новые файлы</label>
+                                        <input type="file" name="files" class="form-control" multiple>
+                                    </div>
+                                    
                                 </div>
                                 <div class="modal-footer">
-                                    <button type="submit" class="btn btn-primary">Сохранить изменения</button>
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                                    <button type="submit" class="btn btn-primary">Сохранить</button>
                                 </div>
                             </form>
                         </div>
                     </div>
                 </div>
+                {% endif %}
+
+                <!-- Формы для удаления файлов (скрытые) -->
+                {% for file in task.attachments %}
+                    <form id="del-file-{{ file.id }}" action="/attachment/{{ file.id }}/delete" method="POST" style="display: none;"></form>
+                {% endfor %}
+                <!-- ========================================================= -->
+                
                 {% else %}
                 <tr>
-                    <td colspan="6" class="text-center py-4 text-muted">По вашему запросу задач не найдено.</td>
+                    <td colspan="5" class="text-center py-4 text-muted">По вашему запросу задач не найдено.</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -212,12 +292,12 @@
 </nav>
 {% endif %}
 
-<!-- модалка добавления (только для админа) -->
+<!-- МОДАЛКА: ДОБАВИТЬ ЗАДАЧУ (для админа) -->
 {% if current_user.role == 'admin' %}
 <div class="modal fade" id="addTaskModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form action="/project/{{ project.id }}/add_task" method="POST">
+            <form action="/project/{{ project.id }}/add_task" method="POST" enctype="multipart/form-data">
                 <div class="modal-header">
                     <h5 class="modal-title">Новая задача</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -226,6 +306,14 @@
                     <div class="mb-3">
                         <label class="form-label">Название задачи</label>
                         <input type="text" name="title" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Описание задачи (инструкция)</label>
+                        <textarea name="description" class="form-control" rows="4" placeholder="Распишите подробно, что нужно сделать..."></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Стартовые файлы (макеты, ТЗ)</label>
+                        <input type="file" name="files" class="form-control" multiple>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Назначить исполнителя</label>
@@ -240,7 +328,34 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary">Добавить</button>
+                    <button type="submit" class="btn btn-primary">Создать задачу</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- МОДАЛКА: РЕДАКТИРОВАТЬ ПРОЕКТ (для админа) -->
+<div class="modal fade" id="editProjectModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form action="/project/{{ project.id }}/edit" method="POST">
+                <div class="modal-header">
+                    <h5 class="modal-title">Изменить проект</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Название проекта</label>
+                        <input type="text" name="title" class="form-control" value="{{ project.title }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Описание проекта</label>
+                        <textarea name="description" class="form-control" rows="3">{{ project.description }}</textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
                 </div>
             </form>
         </div>

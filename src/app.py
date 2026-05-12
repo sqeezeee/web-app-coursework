@@ -9,17 +9,14 @@ import uuid
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'super-secret-key-for-coursework'
 
-# Берем ссылку на БД из хостинга, иначе используем локальную базу
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL') or 'sqlite:///tasktracker.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Настройка папки для файлов
 app.config['UPLOAD_FOLDER'] = os.path.join('static', 'uploads')
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 db = SQLAlchemy(app)
 
-# Менеджер авторизации
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 login_manager.login_message = "Пожалуйста, войдите для доступа."
@@ -31,6 +28,7 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True, nullable=False)
     password_hash = db.Column(db.String(128), nullable=False)
+    # По умолчанию все теперь пользователи
     role = db.Column(db.String(20), default='user') 
 
     def set_password(self, password):
@@ -51,6 +49,8 @@ class Task(db.Model):
     __tablename__ = 'tasks'
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)
+    # НОВОЕ ПОЛЕ: Описание задачи
+    description = db.Column(db.Text, nullable=True)
     status = db.Column(db.String(20), default='pending') 
     project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
     assignee_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
@@ -61,11 +61,14 @@ class Task(db.Model):
 class Attachment(db.Model):
     __tablename__ = 'attachments'
     id = db.Column(db.Integer, primary_key=True)
-    file_name = db.Column(db.String(255), nullable=False)
-    file_path = db.Column(db.String(255), nullable=False)
+    file_name = db.Column(db.String(255), nullable=False) 
+    file_path = db.Column(db.String(255), nullable=False) 
+    # НОВЫЕ ПОЛЯ: тип файла и кто загрузил
+    file_type = db.Column(db.String(20), nullable=True)
+    uploader_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     task_id = db.Column(db.Integer, db.ForeignKey('tasks.id'), nullable=False)
-
-# ======================================================
+    
+    uploader = db.relationship('User', backref='uploaded_files', foreign_keys=[uploader_id])
 
 with app.app_context():
     db.create_all()
@@ -74,17 +77,22 @@ with app.app_context():
 def load_user(user_id):
     return User.query.get(int(user_id))
 
+
 # ================= МАРШРУТЫ ПРОЕКТОВ И ДАШБОРДА =================
 @app.route('/')
 @login_required
 def index():
     if current_user.role == 'admin':
-        projects = Project.query.all()
-        total_tasks = Task.query.count()
-        pending_tasks = Task.query.filter_by(status='pending').count()
-        in_progress_tasks = Task.query.filter_by(status='in_progress').count()
-        done_tasks = Task.query.filter_by(status='done').count()
+        # АДМИН ВИДИТ ТОЛЬКО СВОИ ПРОЕКТЫ И СТАТИСТИКУ
+        projects = Project.query.filter_by(owner_id=current_user.id).all()
+        project_ids = [p.id for p in projects]
+        
+        total_tasks = Task.query.filter(Task.project_id.in_(project_ids)).count() if project_ids else 0
+        pending_tasks = Task.query.filter(Task.project_id.in_(project_ids), Task.status=='pending').count() if project_ids else 0
+        in_progress_tasks = Task.query.filter(Task.project_id.in_(project_ids), Task.status=='in_progress').count() if project_ids else 0
+        done_tasks = Task.query.filter(Task.project_id.in_(project_ids), Task.status=='done').count() if project_ids else 0
     else:
+        # ПОЛЬЗОВАТЕЛЬ ВИДИТ ТОЛЬКО ПРОЕКТЫ СО СВОИМИ ЗАДАЧАМИ
         projects = Project.query.join(Task).filter(Task.assignee_id == current_user.id).distinct().all()
         total_tasks = Task.query.filter_by(assignee_id=current_user.id).count()
         pending_tasks = Task.query.filter_by(assignee_id=current_user.id, status='pending').count()
@@ -114,16 +122,29 @@ def create_project():
         flash('Проект успешно создан!', 'success')
     return redirect(url_for('index'))
 
+# НОВОЕ: Редактирование проекта
+@app.route('/project/<int:project_id>/edit', methods=['POST'])
+@login_required
+def edit_project(project_id):
+    project = Project.query.get_or_404(project_id)
+    if current_user.role != 'admin' or project.owner_id != current_user.id:
+        flash('У вас нет прав редактировать этот проект.', 'danger')
+        return redirect(url_for('index'))
+        
+    project.title = request.form.get('title')
+    project.description = request.form.get('description')
+    db.session.commit()
+    flash('Проект успешно обновлен!', 'success')
+    return redirect(url_for('project_view', project_id=project.id))
+
 @app.route('/project/<int:project_id>/delete', methods=['POST'])
 @login_required
 def delete_project(project_id):
-    if current_user.role != 'admin':
-        flash('У вас нет прав для удаления проектов.', 'danger')
-        return redirect(url_for('index'))
-        
     project = Project.query.get_or_404(project_id)
+    if current_user.role != 'admin' or project.owner_id != current_user.id:
+        flash('У вас нет прав для удаления этого проекта.', 'danger')
+        return redirect(url_for('index'))
     
-    # Физическое удаление всех файлов проекта с сервера
     for task in project.tasks:
         for attachment in task.attachments:
             full_path = os.path.join(app.root_path, attachment.file_path)
@@ -132,7 +153,7 @@ def delete_project(project_id):
                 
     db.session.delete(project)
     db.session.commit()
-    flash(f'Проект "{project.title}" и все его файлы успешно удалены.', 'success')
+    flash(f'Проект "{project.title}" и все его файлы удалены.', 'success')
     return redirect(url_for('index'))
 
 # ================= МАРШРУТЫ ЗАДАЧ И ФАЙЛОВ =================
@@ -142,7 +163,11 @@ def project_view(project_id):
     project = Project.query.get_or_404(project_id)
     users = User.query.all() 
     
-    if current_user.role != 'admin':
+    if current_user.role == 'admin':
+        if project.owner_id != current_user.id:
+            flash('У вас нет доступа к чужому проекту.', 'danger')
+            return redirect(url_for('index'))
+    else:
         user_has_tasks = Task.query.filter_by(project_id=project.id, assignee_id=current_user.id).first()
         if not user_has_tasks:
             flash('У вас нет доступа к этому проекту.', 'danger')
@@ -150,7 +175,6 @@ def project_view(project_id):
             
     total_project_tasks = Task.query.filter_by(project_id=project.id).count()
     done_project_tasks = Task.query.filter_by(project_id=project.id, status='done').count()
-    
     progress = int((done_project_tasks / total_project_tasks) * 100) if total_project_tasks > 0 else 0
 
     query = Task.query.filter_by(project_id=project.id)
@@ -170,20 +194,44 @@ def project_view(project_id):
 @app.route('/project/<int:project_id>/add_task', methods=['POST'])
 @login_required
 def add_task(project_id):
-    if current_user.role != 'admin':
-        flash('Только администратор может ставить задачи.', 'danger')
+    project = Project.query.get_or_404(project_id)
+    if current_user.role != 'admin' or project.owner_id != current_user.id:
+        flash('Только администратор проекта может ставить задачи.', 'danger')
         return redirect(url_for('project_view', project_id=project_id))
         
     title = request.form.get('title')
+    description = request.form.get('description')
     assignee_id = request.form.get('assignee_id')
     
     if title:
         assignee_id = int(assignee_id) if assignee_id else None
-        new_task = Task(title=title, project_id=project_id, assignee_id=assignee_id)
+        new_task = Task(title=title, description=description, project_id=project_id, assignee_id=assignee_id)
         db.session.add(new_task)
         db.session.commit()
-        flash('Задача успешно добавлена!', 'success')
         
+        # Сразу сохраняем файлы от админа при создании задачи
+        if 'files' in request.files:
+            files = request.files.getlist('files')
+            for file in files:
+                if file and file.filename != '':
+                    original_filename = secure_filename(file.filename)
+                    unique_filename = f"{uuid.uuid4().hex}_{original_filename}"
+                    file_ext = original_filename.rsplit('.', 1)[1].lower() if '.' in original_filename else 'unknown'
+                    
+                    file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+                    file.save(file_path)
+                    
+                    new_attachment = Attachment(
+                        file_name=original_filename,
+                        file_path=f"static/uploads/{unique_filename}",
+                        file_type=file_ext,
+                        task_id=new_task.id,
+                        uploader_id=current_user.id
+                    )
+                    db.session.add(new_attachment)
+            db.session.commit()
+            
+        flash('Задача успешно добавлена!', 'success')
     return redirect(url_for('project_view', project_id=project_id))
 
 @app.route('/task/<int:task_id>/update', methods=['POST'])
@@ -199,26 +247,33 @@ def update_task(task_id):
     if new_status:
         task.status = new_status
         
-    # Смена исполнителя
     if current_user.role == 'admin':
+        new_title = request.form.get('title')
+        new_desc = request.form.get('description')
+        if new_title: task.title = new_title
+        if new_desc is not None: task.description = new_desc
+        
         new_assignee_id = request.form.get('assignee_id')
         if new_assignee_id is not None:
             task.assignee_id = int(new_assignee_id) if new_assignee_id != '' else None
-        
-    # МНОЖЕСТВЕННАЯ ЗАГРУЗКА ФАЙЛОВ
+            
     if 'files' in request.files:
         files = request.files.getlist('files')
         for file in files:
             if file and file.filename != '':
                 original_filename = secure_filename(file.filename)
                 unique_filename = f"{uuid.uuid4().hex}_{original_filename}"
+                file_ext = original_filename.rsplit('.', 1)[1].lower() if '.' in original_filename else 'unknown'
+                
                 file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
                 file.save(file_path)
                 
                 new_attachment = Attachment(
                     file_name=original_filename,
                     file_path=f"static/uploads/{unique_filename}",
-                    task_id=task.id
+                    file_type=file_ext,
+                    task_id=task.id,
+                    uploader_id=current_user.id
                 )
                 db.session.add(new_attachment)
                 
@@ -236,7 +291,6 @@ def delete_task(task_id):
         flash('Только администратор может удалять задачи.', 'danger')
         return redirect(url_for('project_view', project_id=project_id))
     
-    # Удаляем файлы с сервера перед удалением задачи
     for attachment in task.attachments:
         full_path = os.path.join(app.root_path, attachment.file_path)
         if os.path.exists(full_path):
@@ -247,7 +301,6 @@ def delete_task(task_id):
     flash('Задача успешно удалена!', 'success')
     return redirect(url_for('project_view', project_id=project_id))
 
-# Точечное удаление конкретного файла
 @app.route('/attachment/<int:attachment_id>/delete', methods=['POST'])
 @login_required
 def delete_attachment(attachment_id):
@@ -255,11 +308,10 @@ def delete_attachment(attachment_id):
     task = attachment.task
     project_id = task.project_id
     
-    if current_user.role != 'admin' and current_user.id != task.assignee_id:
-        flash('У вас нет прав удалять этот файл.', 'danger')
+    if current_user.role != 'admin' and current_user.id != attachment.uploader_id:
+        flash('Вы не можете удалить чужой файл.', 'danger')
         return redirect(url_for('project_view', project_id=project_id))
 
-    # Удаляем файл физически
     full_path = os.path.join(app.root_path, attachment.file_path)
     if os.path.exists(full_path):
         os.remove(full_path)
@@ -269,7 +321,7 @@ def delete_attachment(attachment_id):
     flash('Файл удален!', 'success')
     return redirect(url_for('project_view', project_id=project_id))
 
-# ================= АВТОРИЗАЦИЯ =================
+# ================= АВТОРИЗАЦИЯ И РЕГИСТРАЦИЯ =================
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if current_user.is_authenticated:
@@ -277,14 +329,14 @@ def register():
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
-        role = request.form.get('role')
         
         user_exists = User.query.filter_by(username=username).first()
         if user_exists:
             flash('Пользователь с таким логином уже существует!', 'danger')
             return redirect(url_for('register'))
             
-        new_user = User(username=username, role=role)
+        # РОЛЬ ПО УМОЛЧАНИЮ ВСЕГДА 'user'
+        new_user = User(username=username, role='user')
         new_user.set_password(password)
         db.session.add(new_user)
         db.session.commit()
