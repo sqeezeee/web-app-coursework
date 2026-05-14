@@ -41,13 +41,13 @@
         <div class="card p-4 shadow-sm text-center h-100">
             <h5 class="text-muted mb-4">Общая статистика задач</h5>
             
-            <!-- Проверяем, есть ли вообще задачи в базе -->
+            <!-- проверяем, есть ли вообще задачи в базе -->
             {% if stats.total > 0 %}
                 <div style="height: 250px; display: flex; justify-content: center;">
                     <canvas id="statsChart"></canvas>
                 </div>
                 
-                <!-- Подключаем библиотеку Chart.js -->
+                <!-- подключаем библиотеку Chart.js -->
                 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
                 <script>
                     const ctx = document.getElementById('statsChart').getContext('2d');
@@ -58,7 +58,7 @@
                             datasets:[{
                                 // вставляем агрегированные данные
                                 data: [{{ stats.pending }}, {{ stats.in_progress }}, {{ stats.done }}],
-                                // Цвета: серый, желтый, зеленый
+                                // цвета: серый, желтый, зеленый
                                 backgroundColor:['#6c757d', '#ffc107', '#198754'],
                                 borderWidth: 1
                             }]
@@ -67,7 +67,7 @@
                             responsive: true,
                             maintainAspectRatio: false,
                             plugins: {
-                                legend: { position: 'bottom' } // Легенда снизу
+                                legend: { position: 'bottom' } // легенда снизу
                             }
                         }
                     });

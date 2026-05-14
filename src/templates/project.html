@@ -10,7 +10,7 @@
     </ol>
 </nav>
 
-<!-- ШАПКА ПРОЕКТА -->
+<!-- шапка проекта -->
 <div class="row mb-4 align-items-center">
     <div class="col">
         <h2 class="mb-0">Проект: {{ project.title }}</h2>
@@ -33,7 +33,7 @@
         <button type="button" class="btn btn-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#addTaskModal">
             + Добавить задачу
         </button>
-        <!-- КНОПКА ИЗМЕНЕНИЯ ПРОЕКТА -->
+        <!-- кнопка изменения прокта -->
         <button type="button" class="btn btn-outline-secondary shadow-sm" data-bs-toggle="modal" data-bs-target="#editProjectModal">
             Изменить проект
         </button>
@@ -67,7 +67,7 @@
     {% endif %}
 </form>
 
-<!-- ТАБЛИЦА ЗАДАЧ -->
+<!-- таблица задач -->
 <div class="card shadow-sm mb-4">
     <div class="table-responsive">
         <table class="table table-hover table-bordered mb-0 text-center align-middle">
@@ -85,7 +85,7 @@
                 <tr>
                     <td>{{ task.id }}</td>
                     <td class="text-start fw-bold">
-                        <!-- НАЗВАНИЕ КЛИКАБЕЛЬНО! Открывает окно ПРОСМОТРА -->
+                        <!-- клик по названию открывает окно просмотра -->
                         <a href="#" class="text-decoration-none" data-bs-toggle="modal" data-bs-target="#viewTaskModal{{ task.id }}">
                             {{ task.title }}
                         </a>
@@ -108,7 +108,7 @@
                     </td>
                     <td>
                         <div class="d-flex justify-content-center gap-1">
-                            <!-- Карандашик: Открывает окно РЕДАКТИРОВАНИЯ -->
+                            <!-- карандашик: открывает окно редактирования -->
                             {% if current_user.role == 'admin' or current_user.id == task.assignee_id %}
                             <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#editTaskModal{{ task.id }}" title="Редактировать">✏️</button>
                             {% else %}
@@ -124,7 +124,7 @@
                     </td>
                 </tr>
 
-                <!-- === 1. МОДАЛЬНОЕ ОКНО ПРОСМОТРА (ТОЛЬКО ЧТЕНИЕ) === -->
+                <!-- МОДАЛЬНОЕ ОКНО ПРОСМОТРА -->
                 <div class="modal fade" id="viewTaskModal{{ task.id }}" tabindex="-1">
                     <div class="modal-dialog modal-lg">
                         <div class="modal-content">
@@ -134,7 +134,7 @@
                             </div>
                             <div class="modal-body text-start">
                                 
-                                <!-- ОПИСАНИЕ ЗАДАЧИ -->
+                                <!-- описание задачи -->
                                 <div class="mb-4">
                                     <h6 class="fw-bold border-bottom pb-2">Описание:</h6>
                                     {% if task.description %}
@@ -145,11 +145,11 @@
                                 </div>
 
                                 <div class="row mb-4">
-                                    <!-- МАТЕРИАЛЫ ОТ МЕНЕДЖЕРА -->
+                                    <!-- материала от админа -->
                                     <div class="col-md-6 border-end">
                                         <h6 class="fw-bold text-secondary"><small>ВЛОЖЕНИЯ ОТ АДМИНИСТРАТОРА</small></h6>
                                         <ul class="list-unstyled small">
-                                            <!-- Сначала фильтруем файлы админа в отдельный список -->
+                                            <!-- сначала фильтруем файлы админа в отдельный список -->
                                             {% set admin_files = task.attachments | selectattr('uploader.role', 'equalto', 'admin') | list %}
                                             
                                             {% for file in admin_files %}
@@ -160,17 +160,17 @@
                                                     {% endif %}
                                                 </li>
                                             {% else %}
-                                                <!-- Сработает, только если список admin_files абсолютно пуст -->
+                                                <!-- если список admin_files абсолютно пуст -->
                                                 <li class="text-muted fst-italic">Нет инструкций.</li>
                                             {% endfor %}
                                         </ul>
                                     </div>
 
-                                    <!-- ОТЧЕТЫ ОТ ИСПОЛНИТЕЛЯ -->
+                                    <!-- отчеты от исполнителя -->
                                     <div class="col-md-6">
                                         <h6 class="fw-bold text-success"><small>РЕЗУЛЬТАТЫ РАБОТЫ (ОТЧЕТЫ)</small></h6>
                                         <ul class="list-unstyled small">
-                                            <!-- Фильтруем файлы исполнителя в отдельный список -->
+                                            <!-- фильтруем файлы исполнителя в отдельный список -->
                                             {% set user_files = task.attachments | selectattr('uploader.role', 'equalto', 'user') | list %}
                                             
                                             {% for file in user_files %}
@@ -195,7 +195,7 @@
                     </div>
                 </div>
 
-                <!-- === 2. МОДАЛЬНОЕ ОКНО РЕДАКТИРОВАНИЯ (ПО КАРАНДАШИКУ) === -->
+                <!-- МОДАЛЬНОЕ ОКНО РЕДАКТИРОВАНИЯ -->
                 {% if current_user.role == 'admin' or current_user.id == task.assignee_id %}
                 <div class="modal fade" id="editTaskModal{{ task.id }}" tabindex="-1">
                     <div class="modal-dialog">
@@ -253,11 +253,10 @@
                 </div>
                 {% endif %}
 
-                <!-- Формы для удаления файлов (скрытые) -->
+                <!-- формы для удаления файлов -->
                 {% for file in task.attachments %}
                     <form id="del-file-{{ file.id }}" action="/attachment/{{ file.id }}/delete" method="POST" style="display: none;"></form>
                 {% endfor %}
-                <!-- ========================================================= -->
                 
                 {% else %}
                 <tr>
@@ -292,7 +291,7 @@
 </nav>
 {% endif %}
 
-<!-- МОДАЛКА: ДОБАВИТЬ ЗАДАЧУ (для админа) -->
+<!-- МОДАЛЬНОЕ ОКНО ДОБАВЛЕНИЯ ЗАДАЧИ -->
 {% if current_user.role == 'admin' %}
 <div class="modal fade" id="addTaskModal" tabindex="-1">
     <div class="modal-dialog">
@@ -335,7 +334,7 @@
     </div>
 </div>
 
-<!-- МОДАЛКА: РЕДАКТИРОВАТЬ ПРОЕКТ (для админа) -->
+<!-- МОДАЛЬНОЕ ОКНО РЕДАКТИРОВАНИЯ ПРОЕКТА -->
 <div class="modal fade" id="editProjectModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">

@@ -28,7 +28,6 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True, nullable=False)
     password_hash = db.Column(db.String(128), nullable=False)
-    # По умолчанию все теперь пользователи
     role = db.Column(db.String(20), default='user') 
 
     def set_password(self, password):
@@ -49,7 +48,6 @@ class Task(db.Model):
     __tablename__ = 'tasks'
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)
-    # НОВОЕ ПОЛЕ: Описание задачи
     description = db.Column(db.Text, nullable=True)
     status = db.Column(db.String(20), default='pending') 
     project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
@@ -63,7 +61,6 @@ class Attachment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     file_name = db.Column(db.String(255), nullable=False) 
     file_path = db.Column(db.String(255), nullable=False) 
-    # НОВЫЕ ПОЛЯ: тип файла и кто загрузил
     file_type = db.Column(db.String(20), nullable=True)
     uploader_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     task_id = db.Column(db.Integer, db.ForeignKey('tasks.id'), nullable=False)
@@ -83,7 +80,6 @@ def load_user(user_id):
 @login_required
 def index():
     if current_user.role == 'admin':
-        # АДМИН ВИДИТ ТОЛЬКО СВОИ ПРОЕКТЫ И СТАТИСТИКУ
         projects = Project.query.filter_by(owner_id=current_user.id).all()
         project_ids = [p.id for p in projects]
         
@@ -92,7 +88,6 @@ def index():
         in_progress_tasks = Task.query.filter(Task.project_id.in_(project_ids), Task.status=='in_progress').count() if project_ids else 0
         done_tasks = Task.query.filter(Task.project_id.in_(project_ids), Task.status=='done').count() if project_ids else 0
     else:
-        # ПОЛЬЗОВАТЕЛЬ ВИДИТ ТОЛЬКО ПРОЕКТЫ СО СВОИМИ ЗАДАЧАМИ
         projects = Project.query.join(Task).filter(Task.assignee_id == current_user.id).distinct().all()
         total_tasks = Task.query.filter_by(assignee_id=current_user.id).count()
         pending_tasks = Task.query.filter_by(assignee_id=current_user.id, status='pending').count()
@@ -122,7 +117,6 @@ def create_project():
         flash('Проект успешно создан!', 'success')
     return redirect(url_for('index'))
 
-# НОВОЕ: Редактирование проекта
 @app.route('/project/<int:project_id>/edit', methods=['POST'])
 @login_required
 def edit_project(project_id):
@@ -209,7 +203,7 @@ def add_task(project_id):
         db.session.add(new_task)
         db.session.commit()
         
-        # Сразу сохраняем файлы от админа при создании задачи
+        # Загрузка файлов
         if 'files' in request.files:
             files = request.files.getlist('files')
             for file in files:
@@ -335,7 +329,7 @@ def register():
             flash('Пользователь с таким логином уже существует!', 'danger')
             return redirect(url_for('register'))
             
-        # РОЛЬ ПО УМОЛЧАНИЮ ВСЕГДА 'user'
+        # Роль по умолчанию 'user'
         new_user = User(username=username, role='user')
         new_user.set_password(password)
         db.session.add(new_user)
