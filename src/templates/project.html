@@ -4,8 +4,8 @@
 <!-- хлебные крошки -->
 <nav aria-label="breadcrumb">
     <ol class="breadcrumb">
-        <li class="breadcrumb-item"><a href="/" class="text-decoration-none">Главная</a></li>
-        <li class="breadcrumb-item"><a href="/" class="text-decoration-none">Проекты</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('main.index') }}" class="text-decoration-none">Главная</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('main.index') }}" class="text-decoration-none">Проекты</a></li>
         <li class="breadcrumb-item active" aria-current="page">{{ project.title }}</li>
     </ol>
 </nav>
@@ -33,11 +33,10 @@
         <button type="button" class="btn btn-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#addTaskModal">
             + Добавить задачу
         </button>
-        <!-- кнопка изменения прокта -->
         <button type="button" class="btn btn-outline-secondary shadow-sm" data-bs-toggle="modal" data-bs-target="#editProjectModal">
             Изменить проект
         </button>
-        <form action="/project/{{ project.id }}/delete" method="POST" class="m-0" onsubmit="return confirm('Вы уверены, что хотите удалить этот проект и ВСЕ его файлы?');">
+        <form action="{{ url_for('main.delete_project', project_id=project.id) }}" method="POST" class="m-0" onsubmit="return confirm('Вы уверены, что хотите удалить этот проект и ВСЕ его файлы?');">
             <button type="submit" class="btn btn-outline-danger shadow-sm">Удалить</button>
         </form>
     </div>
@@ -45,8 +44,8 @@
 </div>
 
 <!-- форма поиска и фильтрации -->
-<form method="GET" action="/project/{{ project.id }}" class="row mb-4">
-    <div class="col-md-4">
+<form method="GET" action="{{ url_for('main.project_view', project_id=project.id) }}" class="row mb-4 g-2">
+    <div class="col-md-5">
         <input type="text" name="search" class="form-control" placeholder="🔍 Поиск задач..." value="{{ request.args.get('search', '') }}">
     </div>
     <div class="col-md-3">
@@ -57,14 +56,12 @@
             <option value="done" {% if request.args.get('status') == 'done' %}selected{% endif %}>Готово</option>
         </select>
     </div>
-    <div class="col-md-2">
+    <div class="col-auto d-flex gap-2">
         <button type="submit" class="btn btn-secondary">Найти</button>
+        {% if request.args.get('search') or request.args.get('status') %}
+            <a href="{{ url_for('main.project_view', project_id=project.id) }}" class="btn btn-outline-danger">Сбросить</a>
+        {% endif %}
     </div>
-    {% if request.args.get('search') or request.args.get('status') %}
-    <div class="col-md-2">
-        <a href="/project/{{ project.id }}" class="btn btn-outline-danger">Сбросить</a>
-    </div>
-    {% endif %}
 </form>
 
 <!-- таблица задач -->
@@ -112,11 +109,12 @@
                             {% if current_user.role == 'admin' or current_user.id == task.assignee_id %}
                             <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#editTaskModal{{ task.id }}" title="Редактировать">✏️</button>
                             {% else %}
+                            <!-- заблокированный полупрозрачный карандашик для тех, у кого нет прав -->
                             <button class="btn btn-sm btn-outline-secondary" disabled>✏️</button>
                             {% endif %}
                             
                             {% if current_user.role == 'admin' %}
-                            <form action="/task/{{ task.id }}/delete" method="POST" class="m-0" onsubmit="return confirm('Удалить задачу и все прикрепленные к ней файлы?');">
+                            <form action="{{ url_for('main.delete_task', task_id=task.id) }}" method="POST" class="m-0" onsubmit="return confirm('Удалить задачу и все прикрепленные к ней файлы?');">
                                 <button type="submit" class="btn btn-sm btn-outline-danger" title="Удалить">🗑️</button>
                             </form>
                             {% endif %}
@@ -200,7 +198,7 @@
                 <div class="modal fade" id="editTaskModal{{ task.id }}" tabindex="-1">
                     <div class="modal-dialog">
                         <div class="modal-content">
-                            <form action="/task/{{ task.id }}/update" method="POST" enctype="multipart/form-data">
+                            <form action="{{ url_for('main.update_task', task_id=task.id) }}" method="POST" enctype="multipart/form-data">
                                 <div class="modal-header">
                                     <h5 class="modal-title">Обновление задачи #{{ task.id }}</h5>
                                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -255,7 +253,7 @@
 
                 <!-- формы для удаления файлов -->
                 {% for file in task.attachments %}
-                    <form id="del-file-{{ file.id }}" action="/attachment/{{ file.id }}/delete" method="POST" style="display: none;"></form>
+                    <form id="del-file-{{ file.id }}" action="{{ url_for('main.delete_attachment', attachment_id=file.id) }}" method="POST" style="display: none;"></form>
                 {% endfor %}
                 
                 {% else %}
@@ -273,30 +271,30 @@
 <nav>
     <ul class="pagination justify-content-center">
         <li class="page-item {% if not tasks.has_prev %}disabled{% endif %}">
-            <a class="page-link" href="?page={{ tasks.prev_num }}&search={{ request.args.get('search', '') }}&status={{ request.args.get('status', '') }}">Назад</a>
+            <a class="page-link" href="{{ url_for('main.project_view', project_id=project.id, page=tasks.prev_num, search=request.args.get('search', ''), status=request.args.get('status', '')) }}">Назад</a>
         </li>
         {% for page_num in tasks.iter_pages() %}
             {% if page_num %}
                 <li class="page-item {% if page_num == tasks.page %}active{% endif %}">
-                    <a class="page-link" href="?page={{ page_num }}&search={{ request.args.get('search', '') }}&status={{ request.args.get('status', '') }}">{{ page_num }}</a>
+                    <a class="page-link" href="{{ url_for('main.project_view', project_id=project.id, page=page_num, search=request.args.get('search', ''), status=request.args.get('status', '')) }}">{{ page_num }}</a>
                 </li>
             {% else %}
                 <li class="page-item disabled"><span class="page-link">...</span></li>
             {% endif %}
         {% endfor %}
         <li class="page-item {% if not tasks.has_next %}disabled{% endif %}">
-            <a class="page-link" href="?page={{ tasks.next_num }}&search={{ request.args.get('search', '') }}&status={{ request.args.get('status', '') }}">Вперед</a>
+            <a class="page-link" href="{{ url_for('main.project_view', project_id=project.id, page=tasks.next_num, search=request.args.get('search', ''), status=request.args.get('status', '')) }}">Вперед</a>
         </li>
     </ul>
 </nav>
 {% endif %}
 
-<!-- МОДАЛЬНОЕ ОКНО ДОБАВЛЕНИЯ ЗАДАЧИ -->
+<!-- МОДАЛКА ДОБАВЛЕНИЯ ЗАДАЧИ -->
 {% if current_user.role == 'admin' %}
 <div class="modal fade" id="addTaskModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form action="/project/{{ project.id }}/add_task" method="POST" enctype="multipart/form-data">
+            <form action="{{ url_for('main.add_task', project_id=project.id) }}" method="POST" enctype="multipart/form-data">
                 <div class="modal-header">
                     <h5 class="modal-title">Новая задача</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -334,11 +332,11 @@
     </div>
 </div>
 
-<!-- МОДАЛЬНОЕ ОКНО РЕДАКТИРОВАНИЯ ПРОЕКТА -->
+<!-- МОДАЛКА РЕДАКТИРОВАНИЯ ПРОЕКТА -->
 <div class="modal fade" id="editProjectModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form action="/project/{{ project.id }}/edit" method="POST">
+            <form action="{{ url_for('main.edit_project', project_id=project.id) }}" method="POST">
                 <div class="modal-header">
                     <h5 class="modal-title">Изменить проект</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>

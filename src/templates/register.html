@@ -1,19 +1,20 @@
 {% extends 'base.html' %}
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-md-4">
-        <h3 class="mb-3 text-center">Регистрация</h3>
-        <div class="card p-4 shadow-sm">
-            <form method="POST">
+    <div class="col-md-4 mt-5">
+        <h3 class="mb-4 text-center">Регистрация</h3>
+        <div class="card p-4 shadow-sm border-0">
+            <form action="{{ url_for('auth.register') }}" method="POST">
                 <div class="mb-3">
-                    <label>Логин</label>
+                    <label class="form-label">Придумайте логин</label>
                     <input type="text" name="username" class="form-control" required>
                 </div>
-                <div class="mb-3">
-                    <label>Пароль</label>
+                <div class="mb-4">
+                    <label class="form-label">Пароль</label>
                     <input type="password" name="password" class="form-control" required>
                 </div>
-                <button type="submit" class="btn btn-primary w-100">Зарегистрироваться</button>
+                
+                <button type="submit" class="btn btn-primary w-100">Создать аккаунт</button>
             </form>
         </div>
     </div>
