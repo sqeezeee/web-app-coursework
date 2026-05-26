@@ -8,8 +8,8 @@ app = Flask(__name__)
 
 # конфигурация безопасности и базы данных
 app.config['SECRET_KEY'] = 'super-secret-key-for-coursework'
-# берем путь к БД из системного окружения (для хостинга), иначе используем локальную
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL') or 'sqlite:///tasktracker.db'
+# Если хостинг не дал ссылку, используем локальный PostgreSQL из докера
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL') or 'postgresql://postgres:mysecretpassword@localhost:5432/postgres'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # настройка папки для загрузки пользовательских файлов

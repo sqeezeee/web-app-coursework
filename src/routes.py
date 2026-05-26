@@ -120,7 +120,7 @@ def project_view(project_id):
     progress = int((done_project_tasks / total_project_tasks) * 100) if total_project_tasks > 0 else 0
 
     # инициализируем базовый запрос к таблице задач
-    query = Task.query.filter_by(project_id=project.id)
+    query = Task.query.filter_by(project_id=project.id).order_by(Task.id)
     
     # request.args хранит параметры из адресной строки (GET-запрос)
     search_query = request.args.get('search')
